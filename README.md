@@ -11,7 +11,9 @@ Python/C programmer and the stuff an MMORPG actually depends on.
 
 ## The three folders
 
-- **`Courses/`** — concepts, in order, focused on what's new vs Python/C.
+- **`Courses/`** — concepts, in order, focused on what's new vs Python/C. Includes
+  **`REFERENCE_methods.md`** — a grep-able cheatsheet of the most-used methods (String, Vec,
+  HashMap, Option, Result, iterators, numbers…) with examples. Keep it open while coding.
 - **`Exercises/`** — short drills + mini-projects to make each concept stick (same numbering).
 - **`Projects/`** — a **42-style ladder of small, runnable projects**, each a piece you'll later
   assemble into the real target project: **TAP — The Answer Protocol** (a shared-world text
