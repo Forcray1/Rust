@@ -8,7 +8,7 @@ struct Player {
 }
 
 struct Inventory {
-	items: HashMap::<Item, i32>,
+	items: HashMap<Item, i32>,
 }
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
@@ -20,37 +20,34 @@ struct Item {
 
 #[derive(Debug)]
 struct World {
-	items: HashMap::<String, Item>,
+	items: HashMap<String, Item>,
 }
 
 fn take(inventory: &mut Inventory, item: Item) {
-	if inventory.items.contains_key(&item){
-		remove(inventory, item);
-	} else {
-		inventory.items.insert(item, 1);
-	}
+	// picking up an item adds one (creates the entry at 0 if absent, then +1)
+	*inventory.items.entry(item).or_insert(0) += 1;
 }
 
-fn remove(inventory: &mut Inventory, item: Item) {
-	if let Some(x) = inventory.items.get_mut(&item){
-		if *x == 1 {
-			inventory.items.remove(&item);
+fn remove(inventory: &mut Inventory, item: &Item) {
+	if let Some(x) = inventory.items.get_mut(item) {
+		if *x <= 1 {
+			inventory.items.remove(item);
 		} else {
 			*x -= 1;
 		}
 	}
 }
 
-fn use_item(player: &mut Player, item: Item){
+fn use_item(player: &mut Player, item: Item) {
 	if item.category == "heal" {
-		if player.inventory.items.contains_key(&item){
-				remove(&mut player.inventory, item.clone());
-				heal(player, item.value);
+		if player.inventory.items.contains_key(&item) {
+			remove(&mut player.inventory, &item); // borrow, no clone needed
+			heal(player, item.value);
 		} else {
-				println!("You don't have enough {}", item.name);
-			}
+			println!("You don't have enough {}", item.name);
+		}
 	} else {
-		println!("You can't use {}", item.name)
+		println!("You can't use {}", item.name);
 	}
 }
 
@@ -68,36 +65,51 @@ fn heal(player: &mut Player, i: i32) {
 
 fn action(line: String, player: &mut Player, world: &mut World) {
 	let mut splited = line.split_whitespace();
-	let action = splited.next().unwrap_or("");
+	let verb = splited.next().unwrap_or("");
 	let item_name = splited.next().unwrap_or("");
-	let item = match world.items.get(item_name) {
-        Some(item) => item.clone(),
-        None => {
-            println!("Unknown item: {}", item_name);
-            return;
-        }
-    };
-	if action == "use"{
-		use_item(player, item);
-	} else if action == "take" {
-		take(&mut player.inventory, item);
-		world.items.remove(item_name);
+
+	match verb {
+		"take" => match world.items.get(item_name) {
+			Some(item) => {
+				let item = item.clone();
+				take(&mut player.inventory, item);
+				world.items.remove(item_name); // it left the world, it's in the bag now
+			}
+			None => println!("Unknown item: {}", item_name),
+		},
+		"use" => {
+			// a used item must come from the PLAYER'S inventory, not the world
+			let found = player
+				.inventory
+				.items
+				.keys()
+				.find(|it| it.name == item_name)
+				.cloned();
+			match found {
+				Some(item) => use_item(player, item),
+				None => println!("You don't have a {}", item_name),
+			}
+		}
+		"" => {} // empty line: do nothing
+		_ => println!("Unknown action: {}", verb),
 	}
 }
 
 fn main() {
-    let mut world = World { items: HashMap::new() };
+	let mut world = World { items: HashMap::new() };
+
 	println!("Enter your name:");
 	let mut name_player = String::new();
 	io::stdin()
-        .read_line(&mut name_player)
-        .expect("Failed to read line");
-	let inv = HashMap::new();
+		.read_line(&mut name_player)
+		.expect("Failed to read line");
+
 	let mut player = Player {
-		name: name_player,
-		inventory: Inventory {items: inv},
-		hp: 100
+		name: name_player.trim().to_string(), // strip the trailing '\n'
+		inventory: Inventory { items: HashMap::new() },
+		hp: 100,
 	};
+
 	let potion = Item {
 		name: String::from("potion"),
 		category: String::from("heal"),
@@ -110,23 +122,26 @@ fn main() {
 	};
 	world.items.insert(potion.name.clone(), potion);
 	world.items.insert(sword.name.clone(), sword);
-	let mut flag: i32 = 0;
+
 	loop {
 		print!("\x1B[2J\x1B[1;1H");
-		println!("World: {:?}", world);
-		println!("You can take an object in the world, or use one you took");
-		println!("Or exit by typing 'exit'");
+		println!("Player: {} | HP: {}/100", player.name, player.hp);
+		println!("World: {:?}", world.items.keys().collect::<Vec<_>>());
+		println!("Inventory: {:?}", player.inventory.items.keys().collect::<Vec<_>>());
+		println!("Type: take <item> | use <item> | exit");
+
 		let mut input = String::new();
 		io::stdin()
 			.read_line(&mut input)
 			.expect("Failed to read line");
+
 		if input.trim() == "exit" {
 			return;
-		} else {
-			action(input, &mut player, &mut world)
 		}
+		action(input, &mut player, &mut world);
+
 		println!("Press enter");
 		let mut _a = String::new();
-		io::stdin().read_line(&mut _a);
+		let _ = io::stdin().read_line(&mut _a); // ignore the Result on purpose
 	}
 }
